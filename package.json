@@ -1,0 +1,11 @@
+{
+  "name": "device-lock-netlify",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "node -e \"const fs=require('fs');fs.rmSync('dist',{recursive:true,force:true});fs.mkdirSync('dist');fs.copyFileSync('mini project.html','dist/index.html');\""
+  },
+  "dependencies": {
+    "nodemailer": "^10.0.10"
+  }
+}

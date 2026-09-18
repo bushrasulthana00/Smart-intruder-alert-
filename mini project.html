@@ -1,0 +1,1342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Device Lock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --abyss:      #070E13;
+    --petrol:     #0F1C24;
+    --panel-top:  #182934;
+    --panel-btm:  #101C24;
+    --field:      #0B151B;
+    --edge:       #243A47;
+    --brass:      #C9A15E;
+    --brass-lit:  #EBD09A;
+    --mist:       #8FA6B2;
+    --paper:      #E7EFF2;
+    --go:         #7FD1A4;
+    --stop:       #E8806E;
+
+    --ring-size: 78px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    font-family: 'Archivo', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 24px 18px;
+    color: var(--paper);
+    background:
+      radial-gradient(1100px 620px at 50% -10%, #1B3140 0%, rgba(27,49,64,0) 62%),
+      radial-gradient(760px 520px at 85% 110%, #13323A 0%, rgba(19,50,58,0) 58%),
+      linear-gradient(170deg, var(--petrol) 0%, var(--abyss) 100%);
+    background-attachment: fixed;
+  }
+
+  /* ---------- panel ---------- */
+  .container {
+    position: relative;
+    width: 100%;
+    max-width: 396px;
+    padding: 38px 30px 28px;
+    border-radius: 22px;
+    background: linear-gradient(168deg, var(--panel-top) 0%, var(--panel-btm) 100%);
+    border: 1px solid rgba(201, 161, 94, 0.16);
+    box-shadow:
+      0 1px 0 rgba(235, 208, 154, 0.10) inset,
+      0 0 0 1px rgba(0, 0, 0, 0.35),
+      0 34px 70px -24px rgba(0, 0, 0, 0.85),
+      0 2px 10px rgba(0, 0, 0, 0.4);
+    text-align: center;
+  }
+
+  /* hairline seam across the faceplate */
+  .container::after {
+    content: "";
+    position: absolute;
+    left: 30px; right: 30px;
+    top: calc(38px + var(--ring-size) / 2);
+    height: 1px;
+    background: linear-gradient(90deg,
+      rgba(201,161,94,0) 0%,
+      rgba(201,161,94,0.22) 18%,
+      rgba(201,161,94,0.22) 82%,
+      rgba(201,161,94,0) 100%);
+    pointer-events: none;
+  }
+
+  /* ---------- status ring: the one bold element ---------- */
+  .ring {
+    position: relative;
+    z-index: 1;
+    width: var(--ring-size);
+    height: var(--ring-size);
+    margin: 0 auto 22px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background:
+      linear-gradient(160deg, #1D2F3B 0%, #0E1A21 100%);
+    border: 1px solid rgba(201, 161, 94, 0.42);
+    box-shadow:
+      0 0 0 6px rgba(15, 28, 36, 0.95),
+      0 0 0 7px rgba(201, 161, 94, 0.13),
+      0 10px 24px -10px rgba(0, 0, 0, 0.9),
+      0 1px 0 rgba(235, 208, 154, 0.18) inset;
+    color: var(--brass-lit);
+  }
+
+  .ring svg { width: 30px; height: 30px; display: block; }
+
+  .ring .step {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 1.85rem;
+    line-height: 1;
+    color: var(--brass-lit);
+    padding-top: 2px;
+  }
+
+  .ring.is-open {
+    border-color: rgba(127, 209, 164, 0.55);
+    color: var(--go);
+    box-shadow:
+      0 0 0 6px rgba(15, 28, 36, 0.95),
+      0 0 0 7px rgba(127, 209, 164, 0.18),
+      0 0 26px -4px rgba(127, 209, 164, 0.45),
+      0 1px 0 rgba(255, 255, 255, 0.12) inset;
+  }
+
+  .ring.is-alert {
+    border-color: rgba(232, 128, 110, 0.6);
+    color: var(--stop);
+  }
+
+  /* state animations must outrank the entrance animation above */
+  .page.active > .ring.is-alert { animation: knock .5s cubic-bezier(.36,.07,.19,.97) both; }
+  .page.active > .ring.is-open  { animation: settle .55s cubic-bezier(.2,.8,.25,1) both; }
+
+  @keyframes knock {
+    0%, 100% { transform: translateX(0); }
+    15%      { transform: translateX(-7px); }
+    35%      { transform: translateX(6px); }
+    55%      { transform: translateX(-4px); }
+    75%      { transform: translateX(3px); }
+  }
+
+  @keyframes settle {
+    0%   { transform: scale(1); }
+    45%  { transform: scale(1.09); }
+    100% { transform: scale(1); }
+  }
+
+  /* the arc that draws itself closed when the device opens */
+  .ring-arc {
+    position: absolute;
+    inset: -1px;
+    width: calc(100% + 2px);
+    height: calc(100% + 2px);
+    transform: rotate(-90deg);
+    pointer-events: none;
+  }
+
+  .ring-arc circle {
+    fill: none;
+    stroke: var(--go);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-dasharray: 302;
+    stroke-dashoffset: 302;
+    opacity: 0;
+    transition: stroke-dashoffset .75s cubic-bezier(.3,.8,.3,1), opacity .2s ease;
+  }
+
+  .ring.is-open .ring-arc circle { stroke-dashoffset: 0; opacity: 1; }
+
+  .ring.is-alert .ring-arc circle {
+    stroke: var(--stop);
+    opacity: 1;
+    stroke-dasharray: 26 34;
+    stroke-dashoffset: 0;
+    animation: sweep 1.1s linear infinite;
+  }
+
+  @keyframes sweep {
+    to { stroke-dashoffset: -60; }
+  }
+
+  /* the padlock itself opens */
+  .lock-icon { overflow: visible; }
+
+  .shackle {
+    transform-box: fill-box;
+    transform-origin: 100% 100%;
+    transition: transform .5s cubic-bezier(.34, 1.4, .5, 1);
+  }
+
+  .ring.is-open .shackle { transform: translateY(-3px) rotate(-26deg); }
+
+  .pin { transition: opacity .3s ease; }
+  .ring.is-open .pin { opacity: 0; }
+
+  /* a slow breath while the device sits locked */
+  .ring:not(.is-open):not(.is-alert) .lock-icon {
+    animation: breathe 4.5s ease-in-out infinite;
+  }
+
+  @keyframes breathe {
+    0%, 100% { opacity: .82; }
+    50%      { opacity: 1; }
+  }
+
+  /* ---------- type ---------- */
+  h2 {
+    font-family: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+    font-weight: 400;
+    font-size: 2rem;
+    line-height: 1.12;
+    letter-spacing: 0.01em;
+    color: var(--paper);
+    margin: 0 0 7px;
+  }
+
+  .subtitle {
+    color: var(--mist);
+    font-size: 0.875rem;
+    line-height: 1.45;
+    margin: 0 0 26px;
+    font-weight: 400;
+  }
+
+  /* ---------- fields ---------- */
+  .field {
+    position: relative;
+    margin-bottom: 4px;
+    text-align: left;
+  }
+
+  .field input {
+    width: 100%;
+    font-family: inherit;
+    font-size: 0.97rem;
+    color: var(--paper);
+    padding: 22px 15px 10px 15px;
+    background: var(--field);
+    border: 1px solid var(--edge);
+    border-radius: 12px;
+    transition: border-color .22s ease, box-shadow .22s ease, background .22s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.5) inset;
+  }
+
+  .field:has(.peek) input { padding-right: 46px; }
+
+  .field input::placeholder { color: transparent; }
+
+  .field label {
+    position: absolute;
+    left: 16px;
+    top: 15px;
+    font-size: 0.95rem;
+    color: var(--mist);
+    pointer-events: none;
+    transition: transform .18s ease, font-size .18s ease, color .18s ease;
+    transform-origin: left top;
+  }
+
+  .field input:focus + label,
+  .field input:not(:placeholder-shown) + label {
+    transform: translateY(-9px);
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    color: var(--brass);
+  }
+
+  .field input:focus {
+    outline: none;
+    border-color: rgba(201, 161, 94, 0.75);
+    background: #0D1920;
+    box-shadow:
+      0 0 0 3px rgba(201, 161, 94, 0.14),
+      0 1px 2px rgba(0,0,0,0.5) inset;
+  }
+
+  .field input.valid   { border-color: rgba(127, 209, 164, 0.55); }
+  .field input.invalid { border-color: rgba(232, 128, 110, 0.6); }
+
+  .field input:focus.valid   { box-shadow: 0 0 0 3px rgba(127,209,164,0.13), 0 1px 2px rgba(0,0,0,.5) inset; }
+  .field input:focus.invalid { box-shadow: 0 0 0 3px rgba(232,128,110,0.14), 0 1px 2px rgba(0,0,0,.5) inset; }
+
+  .field input:-webkit-autofill {
+    -webkit-text-fill-color: var(--paper);
+    -webkit-box-shadow: 0 0 0 100px #0D1920 inset;
+    caret-color: var(--paper);
+  }
+
+  .peek {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    background: none;
+    border: 0;
+    border-radius: 9px;
+    padding: 0;
+    margin: 0;
+    color: var(--mist);
+    cursor: pointer;
+    transition: color .2s ease, background .2s ease;
+  }
+
+  .peek:hover { color: var(--brass-lit); background: rgba(201,161,94,0.08); }
+  .peek svg { width: 19px; height: 19px; }
+
+  .feedback {
+    font-size: 0.78rem;
+    line-height: 1.3;
+    min-height: 18px;
+    margin: 8px 2px 12px;
+    text-align: left;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
+  .feedback.valid   { color: var(--go); }
+  .feedback.invalid { color: var(--stop); }
+
+  /* ---------- buttons ---------- */
+  button {
+    width: 100%;
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.015em;
+    padding: 14px 18px;
+    color: #14222B;
+    background: linear-gradient(178deg, var(--brass-lit) 0%, var(--brass) 55%, #AD864A 100%);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    margin-bottom: 10px;
+    transition: transform .16s ease, box-shadow .2s ease, filter .2s ease;
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.35) inset,
+      0 8px 20px -10px rgba(201, 161, 94, 0.75);
+  }
+
+  button:hover:not(:disabled) {
+    filter: brightness(1.06);
+    transform: translateY(-1px);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.4) inset,
+      0 12px 26px -10px rgba(201, 161, 94, 0.85);
+  }
+
+  button:active:not(:disabled) { transform: translateY(0); }
+
+  button:disabled {
+    background: #1B2A34;
+    color: #55707E;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset;
+    cursor: not-allowed;
+  }
+
+  .secondary-btn,
+  button.secondary-btn {
+    width: 100%;
+    background: transparent;
+    color: var(--mist);
+    border: 1px solid var(--edge);
+    box-shadow: none;
+    font-weight: 500;
+    margin: 2px 0 0;
+  }
+
+  .camera-btn {
+    margin-top: 2px;
+    background: transparent;
+    color: var(--brass-lit);
+    border: 1px solid rgba(201, 161, 94, 0.35);
+    box-shadow: none;
+  }
+
+  .camera-btn:hover:not(:disabled) {
+    background: rgba(201, 161, 94, 0.08);
+    box-shadow: none;
+    filter: none;
+  }
+
+  .secondary-btn:hover:not(:disabled),
+  button.secondary-btn:hover:not(:disabled) {
+    background: rgba(201, 161, 94, 0.06);
+    color: var(--paper);
+    border-color: rgba(201, 161, 94, 0.4);
+    filter: none;
+    box-shadow: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--brass-lit);
+    outline-offset: 2px;
+  }
+
+  /* ---------- messages ---------- */
+  .message {
+    margin-top: 14px;
+    min-height: 22px;
+    font-size: 0.87rem;
+    font-weight: 500;
+    color: var(--stop);
+  }
+
+  .message:not(:empty) {
+    padding: 9px 12px;
+    border-radius: 10px;
+    background: rgba(232, 128, 110, 0.09);
+    border: 1px solid rgba(232, 128, 110, 0.22);
+  }
+
+  .message.success { color: var(--go); }
+
+  .message.success:not(:empty) {
+    background: rgba(127, 209, 164, 0.09);
+    border-color: rgba(127, 209, 164, 0.24);
+  }
+
+  .message.error { color: var(--stop); }
+
+  /* ---------- pages ---------- */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* one orchestrated entrance: elements arrive in reading order */
+  .page.active > * {
+    animation: rise .5s cubic-bezier(.2, .75, .3, 1) both;
+  }
+
+  .page.active > *:nth-child(1) { animation-delay: 0ms;   }
+  .page.active > *:nth-child(2) { animation-delay: 60ms;  }
+  .page.active > *:nth-child(3) { animation-delay: 110ms; }
+  .page.active > *:nth-child(4) { animation-delay: 155ms; }
+  .page.active > *:nth-child(5) { animation-delay: 195ms; }
+  .page.active > *:nth-child(6) { animation-delay: 230ms; }
+  .page.active > *:nth-child(n+7) { animation-delay: 260ms; }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* the ring leads, with a little more travel than the rest */
+  .page.active > .ring {
+    animation: ringIn .62s cubic-bezier(.2, .8, .25, 1) both;
+  }
+
+  @keyframes ringIn {
+    from { opacity: 0; transform: translateY(-10px) scale(.86); }
+    60%  { opacity: 1; transform: translateY(0) scale(1.04); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* ---------- camera / evidence ---------- */
+  video, img {
+    margin: 18px auto 0;
+    border-radius: 12px;
+    max-width: 100%;
+    display: none;
+    border: 1px solid rgba(201, 161, 94, 0.3);
+    box-shadow: 0 12px 30px -14px rgba(0, 0, 0, 0.9);
+  }
+
+  /* ---------- footer links ---------- */
+  .bottom-actions {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(201, 161, 94, 0.14);
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: 0.82rem;
+  }
+
+  .bottom-link {
+    color: var(--mist);
+    cursor: pointer;
+    text-decoration: none;
+    padding: 6px 10px;
+    border-radius: 8px;
+    transition: color .2s ease, background .2s ease;
+  }
+
+  .bottom-link:hover { color: var(--brass-lit); background: rgba(201, 161, 94, 0.07); }
+
+  .danger-link { color: #B5776C; }
+  .danger-link:hover { color: var(--stop); background: rgba(232, 128, 110, 0.09); }
+
+  /* ---------- info plate ---------- */
+  .info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+    background: rgba(201, 161, 94, 0.055);
+    border: 1px solid rgba(201, 161, 94, 0.18);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 18px;
+    color: var(--paper);
+    font-size: 0.85rem;
+    word-break: break-all;
+  }
+
+  .info::before {
+    content: "";
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--brass);
+    box-shadow: 0 0 8px rgba(201, 161, 94, 0.8);
+  }
+
+  /* ---------- motion details ---------- */
+
+  /* the panel arrives once, on load */
+  .container { animation: plate .7s cubic-bezier(.2, .8, .25, 1) both; }
+
+  @keyframes plate {
+    from { opacity: 0; transform: translateY(14px) scale(.985); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* brass sheen crosses the button on hover */
+  button { position: relative; overflow: hidden; }
+
+  button::after {
+    content: "";
+    position: absolute;
+    top: 0; bottom: 0;
+    left: -60%;
+    width: 45%;
+    background: linear-gradient(100deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.5) 50%, rgba(255,255,255,0) 100%);
+    transform: skewX(-18deg);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  button:hover:not(:disabled)::after { animation: sheen .75s ease-out; }
+
+  @keyframes sheen {
+    from { left: -60%; opacity: .9; }
+    to   { left: 115%;  opacity: 0; }
+  }
+
+  .secondary-btn::after { display: none; }
+
+  /* the field lifts slightly as it takes focus */
+  .field { transition: transform .22s ease; }
+  .field:focus-within { transform: translateY(-1px); }
+
+  /* results slide down into place */
+  .message:not(:empty) { animation: drop .34s cubic-bezier(.2,.8,.3,1) both; }
+
+  @keyframes drop {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .feedback:not(:empty) { animation: fadeIn .26s ease both; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  /* camera feed and the captured frame */
+  video[style*="block"] { animation: drop .4s cubic-bezier(.2,.8,.3,1) both; }
+
+  img[style*="block"] { animation: develop .6s cubic-bezier(.2,.8,.25,1) both; }
+
+  @keyframes develop {
+    from { opacity: 0; transform: scale(.94); filter: brightness(2.2) contrast(.5); }
+    to   { opacity: 1; transform: scale(1);   filter: none; }
+  }
+
+  /* shutter */
+  .flash {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: #FFFFFF;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  .flash.fire { animation: shutter .45s ease-out; }
+
+  @keyframes shutter {
+    0%   { opacity: 0; }
+    8%   { opacity: .82; }
+    100% { opacity: 0; }
+  }
+
+  /* footer links grow an underline rather than fading in place */
+  .bottom-link { position: relative; }
+
+  .bottom-link::after {
+    content: "";
+    position: absolute;
+    left: 10px; right: 10px;
+    bottom: 3px;
+    height: 1px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform .25s cubic-bezier(.2,.8,.3,1);
+  }
+
+  .bottom-link:hover::after { transform: scaleX(1); }
+
+  @media (max-width: 400px) {
+    .container { padding: 32px 22px 24px; }
+    .container::after { left: 22px; right: 22px; top: calc(32px + var(--ring-size) / 2); }
+    h2 { font-size: 1.75rem; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .001ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="flash" id="flash" aria-hidden="true"></div>
+
+  <!-- PAGE 1: Save Email -->
+  <div id="page1" class="page active">
+    <div class="ring"><span class="step">1</span></div>
+    <h2>Set up this device</h2>
+    <p class="subtitle">Alerts with an intruder photo go to this address.</p>
+    <div class="field">
+      <input type="email" id="email1" placeholder=" " autocomplete="off" />
+      <label for="email1">Your email</label>
+    </div>
+    <div id="emailFeedback1" class="feedback"></div>
+    <button id="nextBtn1" disabled>Continue</button>
+  </div>
+
+  <!-- PAGE 2: Save Password -->
+  <div id="page2" class="page">
+    <div class="ring"><span class="step">2</span></div>
+    <h2>Choose a password</h2>
+    <p class="subtitle">This is what unlocks the device. Four characters or more.</p>
+    <div class="info" id="emailDisplay"></div>
+    <div class="field">
+      <input type="password" id="password2" placeholder=" " autocomplete="off" />
+      <label for="password2">New password</label>
+      <button type="button" class="peek" data-peek="password2" aria-label="Show password"></button>
+    </div>
+    <div id="pwFeedback2" class="feedback"></div>
+    <button id="nextBtn2" disabled>Finish setup</button>
+  </div>
+
+  <!-- PAGE 3: Unlock Screen -->
+  <div id="page3" class="page">
+    <div class="ring" id="lockRing">
+      <svg class="ring-arc" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="48"/></svg>
+      <svg class="lock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path class="shackle" d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>
+        <rect x="4" y="10.5" width="16" height="10.5" rx="2.5"/>
+        <circle class="pin" cx="12" cy="15.8" r="1.2" fill="currentColor" stroke="none"/>
+      </svg>
+    </div>
+    <h2>Device locked</h2>
+    <p class="subtitle">Enter your password to unlock.</p>
+    <div class="field">
+      <input type="password" id="passwordUnlock" placeholder=" " autocomplete="off" />
+      <label for="passwordUnlock">Password</label>
+      <button type="button" class="peek" data-peek="passwordUnlock" aria-label="Show password"></button>
+    </div>
+    <div class="feedback" aria-hidden="true"></div>
+    <button id="unlockBtn">Unlock</button>
+    <button id="enableCameraBtn" class="camera-btn" type="button">Enable camera</button>
+    <div id="unlockMessage" class="message"></div>
+    <video id="video" autoplay muted playsinline></video>
+    <img id="photo" alt="Photo captured after a failed unlock attempt" />
+
+    <div class="bottom-actions">
+      <span class="bottom-link" role="button" tabindex="0" onclick="openChangeEmail()">Change email</span>
+      <span class="bottom-link" role="button" tabindex="0" onclick="openChangePassword()">Change password</span>
+      <span class="bottom-link danger-link" role="button" tabindex="0" onclick="resetSetup()">Reset</span>
+    </div>
+  </div>
+
+  <!-- PAGE 4: Verify Password (for changes) -->
+  <div id="page4" class="page">
+    <div class="ring">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3l7 3v5.5c0 4.2-2.9 8-7 9.5-4.1-1.5-7-5.3-7-9.5V6z"/>
+        <path d="M9.2 12.2l2 2 3.6-3.9"/>
+      </svg>
+    </div>
+    <h2>Confirm it's you</h2>
+    <p class="subtitle" id="verifySubtitle">Enter current password</p>
+    <div class="field">
+      <input type="password" id="verifyPassword" placeholder=" " autocomplete="off" />
+      <label for="verifyPassword">Current password</label>
+      <button type="button" class="peek" data-peek="verifyPassword" aria-label="Show password"></button>
+    </div>
+    <div class="feedback" aria-hidden="true"></div>
+    <button id="verifyBtn">Continue</button>
+    <div id="verifyMessage" class="message"></div>
+  </div>
+
+  <!-- PAGE 5: Change Email -->
+  <div id="page5" class="page">
+    <div class="ring">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="5.5" width="18" height="13" rx="2.5"/>
+        <path d="M3.6 7.2l7.3 5.2a2 2 0 0 0 2.2 0l7.3-5.2"/>
+      </svg>
+    </div>
+    <h2>Change email</h2>
+    <p class="subtitle">Future alerts go to the new address.</p>
+    <div class="field">
+      <input type="email" id="newEmail" placeholder=" " autocomplete="off" />
+      <label for="newEmail">New email</label>
+    </div>
+    <div id="emailFeedback5" class="feedback"></div>
+    <button id="changeEmailBtn" disabled>Save email</button>
+    <button class="secondary-btn" onclick="goToUnlock()">Cancel</button>
+  </div>
+
+  <!-- PAGE 6: Change Password -->
+  <div id="page6" class="page">
+    <div class="ring">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="8.5" cy="14" r="4"/>
+        <path d="M11.4 11.1l7.1-7.1"/>
+        <path d="M16.2 6.3l2 2"/>
+      </svg>
+    </div>
+    <h2>Change password</h2>
+    <p class="subtitle">Four characters or more.</p>
+    <div class="field">
+      <input type="password" id="newPassword" placeholder=" " autocomplete="off" />
+      <label for="newPassword">New password</label>
+      <button type="button" class="peek" data-peek="newPassword" aria-label="Show password"></button>
+    </div>
+    <div id="pwFeedback6" class="feedback"></div>
+    <button id="changePasswordBtn" disabled>Save password</button>
+    <button class="secondary-btn" onclick="goToUnlock()">Cancel</button>
+  </div>
+
+</div>
+
+<script>
+(() => {
+  // =============== STATE ===============
+  let currentEmail = '';
+  let currentPasswordHash = '';
+  let failedAttempts = 0;
+  let stream = null;
+  let changeMode = null; // 'email' or 'password'
+
+  // =============== ELEMENTS ===============
+  const pages = {
+    page1: document.getElementById('page1'),
+    page2: document.getElementById('page2'),
+    page3: document.getElementById('page3'),
+    page4: document.getElementById('page4'),
+    page5: document.getElementById('page5'),
+    page6: document.getElementById('page6'),
+  };
+
+  // PAGE 1
+  const email1 = document.getElementById('email1');
+  const emailFeedback1 = document.getElementById('emailFeedback1');
+  const nextBtn1 = document.getElementById('nextBtn1');
+
+  // PAGE 2
+  const password2 = document.getElementById('password2');
+  const emailDisplay = document.getElementById('emailDisplay');
+  const pwFeedback2 = document.getElementById('pwFeedback2');
+  const nextBtn2 = document.getElementById('nextBtn2');
+
+  // PAGE 3
+  const passwordUnlock = document.getElementById('passwordUnlock');
+  const unlockBtn = document.getElementById('unlockBtn');
+  const enableCameraBtn = document.getElementById('enableCameraBtn');
+  const unlockMessage = document.getElementById('unlockMessage');
+  const video = document.getElementById('video');
+  const photo = document.getElementById('photo');
+
+  // PAGE 4
+  const verifyPassword = document.getElementById('verifyPassword');
+  const verifyBtn = document.getElementById('verifyBtn');
+  const verifyMessage = document.getElementById('verifyMessage');
+  const verifySubtitle = document.getElementById('verifySubtitle');
+
+  // PAGE 5
+  const newEmail = document.getElementById('newEmail');
+  const emailFeedback5 = document.getElementById('emailFeedback5');
+  const changeEmailBtn = document.getElementById('changeEmailBtn');
+
+  // PAGE 6
+  const newPassword = document.getElementById('newPassword');
+  const pwFeedback6 = document.getElementById('pwFeedback6');
+  const changePasswordBtn = document.getElementById('changePasswordBtn');
+
+  // =============== UTILITIES ===============
+  function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  function isValidPassword(pw) {
+    return pw.length >= 4;
+  }
+
+  async function hashPassword(password) {
+    const data = new TextEncoder().encode(password);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(digest))
+      .map(byte => byte.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  async function isCorrectPassword(password) {
+    return (await hashPassword(password)) === currentPasswordHash;
+  }
+
+  function showPage(pageNum) {
+    Object.values(pages).forEach(p => p.classList.remove('active'));
+    pages[`page${pageNum}`].classList.add('active');
+  }
+
+  function clearForm(input, feedback) {
+    input.value = '';
+    input.classList.remove('valid', 'invalid');
+    feedback.textContent = '';
+    feedback.classList.remove('valid', 'invalid');
+  }
+
+  function submitOnEnter(input, button) {
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !button.disabled) {
+        button.click();
+      }
+    });
+  }
+
+  // =============== PAGE 1: EMAIL ===============
+  email1.addEventListener('input', () => {
+    const val = email1.value.trim();
+    const feedback = emailFeedback1;
+
+    if (!val) {
+      email1.classList.remove('valid', 'invalid');
+      feedback.textContent = '';
+      feedback.classList.remove('valid', 'invalid');
+      nextBtn1.disabled = true;
+      return;
+    }
+
+    if (isValidEmail(val)) {
+      email1.classList.add('valid');
+      email1.classList.remove('invalid');
+      feedback.textContent = 'Email looks good';
+      feedback.classList.add('valid');
+      feedback.classList.remove('invalid');
+      nextBtn1.disabled = false;
+    } else {
+      email1.classList.add('invalid');
+      email1.classList.remove('valid');
+      feedback.textContent = 'Enter a complete address, like you@example.com';
+      feedback.classList.add('invalid');
+      feedback.classList.remove('valid');
+      nextBtn1.disabled = true;
+    }
+  });
+
+  nextBtn1.addEventListener('click', () => {
+    const email = email1.value.trim();
+    if (isValidEmail(email)) {
+      currentEmail = email;
+      emailDisplay.textContent = email;
+      showPage(2);
+      clearForm(email1, emailFeedback1);
+      nextBtn1.disabled = true;
+      password2.focus();
+    }
+  });
+
+  submitOnEnter(email1, nextBtn1);
+
+  // =============== PAGE 2: PASSWORD ===============
+  password2.addEventListener('input', () => {
+    const val = password2.value.trim();
+    const feedback = pwFeedback2;
+
+    if (!val) {
+      password2.classList.remove('valid', 'invalid');
+      feedback.textContent = '';
+      feedback.classList.remove('valid', 'invalid');
+      nextBtn2.disabled = true;
+      return;
+    }
+
+    if (isValidPassword(val)) {
+      password2.classList.add('valid');
+      password2.classList.remove('invalid');
+      feedback.textContent = 'Password accepted';
+      feedback.classList.add('valid');
+      feedback.classList.remove('invalid');
+      nextBtn2.disabled = false;
+    } else {
+      password2.classList.add('invalid');
+      password2.classList.remove('valid');
+      feedback.textContent = 'Use at least 4 characters';
+      feedback.classList.add('invalid');
+      feedback.classList.remove('valid');
+      nextBtn2.disabled = true;
+    }
+  });
+
+  nextBtn2.addEventListener('click', async () => {
+    const pw = password2.value.trim();
+    if (isValidPassword(pw)) {
+      currentPasswordHash = await hashPassword(pw);
+      localStorage.setItem('ownerEmail', currentEmail);
+      localStorage.setItem('deviceLockPwHash', currentPasswordHash);
+      localStorage.removeItem('deviceLockPw');
+      clearForm(password2, pwFeedback2);
+      nextBtn2.disabled = true;
+      showPage(3);
+      passwordUnlock.focus();
+    }
+  });
+
+  submitOnEnter(password2, nextBtn2);
+
+  // =============== PAGE 3: UNLOCK ===============
+  unlockBtn.addEventListener('click', async () => {
+    const enteredPw = passwordUnlock.value.trim();
+    unlockMessage.textContent = '';
+
+    if (!enteredPw) {
+      unlockMessage.classList.remove('success');
+      unlockMessage.classList.add('error');
+      unlockMessage.textContent = 'Enter your password to continue';
+      return;
+    }
+
+    if (await isCorrectPassword(enteredPw)) {
+      unlockMessage.classList.remove('error');
+      unlockMessage.classList.add('success');
+      unlockMessage.textContent = 'Unlocked';
+      failedAttempts = 0;
+      stopCamera();
+      photo.style.display = 'none';
+      passwordUnlock.value = '';
+      return;
+    }
+
+    // Wrong password - capture photo
+    unlockMessage.classList.remove('success');
+    unlockMessage.classList.add('error');
+    unlockMessage.textContent = 'Wrong password. Capturing a photo...';
+    failedAttempts += 1;
+    passwordUnlock.value = '';
+
+    const cameraReady = await startCamera();
+    if (!cameraReady) return;
+
+    setTimeout(() => {
+      const dataUrl = capturePhoto();
+      if (dataUrl) {
+        photo.src = dataUrl;
+        photo.style.display = 'block';
+        sendPhotoByEmail(dataUrl);
+      }
+    }, 1400);
+  });
+
+  submitOnEnter(passwordUnlock, unlockBtn);
+
+  enableCameraBtn.addEventListener('click', async () => {
+    unlockMessage.textContent = 'Requesting camera permission...';
+    unlockMessage.classList.remove('error', 'success');
+    const cameraReady = await startCamera();
+    if (cameraReady) {
+      unlockMessage.classList.remove('error');
+      unlockMessage.classList.add('success');
+      unlockMessage.textContent = 'Camera is ready.';
+    }
+  });
+
+  // =============== PAGE 4: VERIFY PASSWORD ===============
+  verifyBtn.addEventListener('click', async () => {
+    const enteredPw = verifyPassword.value.trim();
+    verifyMessage.textContent = '';
+
+    if (!enteredPw) {
+      verifyMessage.classList.remove('success');
+      verifyMessage.classList.add('error');
+      verifyMessage.textContent = 'Enter your current password';
+      return;
+    }
+
+    if (await isCorrectPassword(enteredPw)) {
+      verifyMessage.classList.remove('error');
+      verifyMessage.classList.add('success');
+      verifyMessage.textContent = 'Confirmed';
+      clearForm(verifyPassword, verifyMessage);
+
+      // Go to appropriate page after verification
+      setTimeout(() => {
+        if (changeMode === 'email') {
+          showPage(5);
+        } else if (changeMode === 'password') {
+          showPage(6);
+        }
+      }, 500);
+    } else {
+      verifyMessage.classList.remove('success');
+      verifyMessage.classList.add('error');
+      verifyMessage.textContent = 'That password does not match';
+    }
+  });
+
+  submitOnEnter(verifyPassword, verifyBtn);
+
+  // =============== PAGE 5: CHANGE EMAIL ===============
+  newEmail.addEventListener('input', () => {
+    const val = newEmail.value.trim();
+    const feedback = emailFeedback5;
+
+    if (!val) {
+      newEmail.classList.remove('valid', 'invalid');
+      feedback.textContent = '';
+      feedback.classList.remove('valid', 'invalid');
+      changeEmailBtn.disabled = true;
+      return;
+    }
+
+    if (isValidEmail(val)) {
+      newEmail.classList.add('valid');
+      newEmail.classList.remove('invalid');
+      feedback.textContent = 'Email looks good';
+      feedback.classList.add('valid');
+      feedback.classList.remove('invalid');
+      changeEmailBtn.disabled = false;
+    } else {
+      newEmail.classList.add('invalid');
+      newEmail.classList.remove('valid');
+      feedback.textContent = 'Enter a complete address, like you@example.com';
+      feedback.classList.add('invalid');
+      feedback.classList.remove('valid');
+      changeEmailBtn.disabled = true;
+    }
+  });
+
+  changeEmailBtn.addEventListener('click', () => {
+    const email = newEmail.value.trim();
+    if (isValidEmail(email)) {
+      currentEmail = email;
+      localStorage.setItem('ownerEmail', email);
+      emailDisplay.textContent = email;
+      clearForm(newEmail, emailFeedback5);
+      changeEmailBtn.disabled = true;
+      unlockMessage.classList.remove('error');
+      unlockMessage.classList.add('success');
+      unlockMessage.textContent = 'Email saved';
+      setTimeout(() => goToUnlock(), 1000);
+    }
+  });
+
+  submitOnEnter(newEmail, changeEmailBtn);
+
+  // =============== PAGE 6: CHANGE PASSWORD ===============
+  newPassword.addEventListener('input', () => {
+    const val = newPassword.value.trim();
+    const feedback = pwFeedback6;
+
+    if (!val) {
+      newPassword.classList.remove('valid', 'invalid');
+      feedback.textContent = '';
+      feedback.classList.remove('valid', 'invalid');
+      changePasswordBtn.disabled = true;
+      return;
+    }
+
+    if (isValidPassword(val)) {
+      newPassword.classList.add('valid');
+      newPassword.classList.remove('invalid');
+      feedback.textContent = 'Password accepted';
+      feedback.classList.add('valid');
+      feedback.classList.remove('invalid');
+      changePasswordBtn.disabled = false;
+    } else {
+      newPassword.classList.add('invalid');
+      newPassword.classList.remove('valid');
+      feedback.textContent = 'Use at least 4 characters';
+      feedback.classList.add('invalid');
+      feedback.classList.remove('valid');
+      changePasswordBtn.disabled = true;
+    }
+  });
+
+  changePasswordBtn.addEventListener('click', async () => {
+    const pw = newPassword.value.trim();
+    if (isValidPassword(pw)) {
+      currentPasswordHash = await hashPassword(pw);
+      localStorage.setItem('deviceLockPwHash', currentPasswordHash);
+      localStorage.removeItem('deviceLockPw');
+      clearForm(newPassword, pwFeedback6);
+      changePasswordBtn.disabled = true;
+      unlockMessage.classList.remove('error');
+      unlockMessage.classList.add('success');
+      unlockMessage.textContent = 'Password saved';
+      setTimeout(() => goToUnlock(), 1000);
+    }
+  });
+
+  submitOnEnter(newPassword, changePasswordBtn);
+
+  // =============== CAMERA & EMAIL ===============
+  async function startCamera() {
+    if (stream) return true;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      unlockMessage.classList.remove('success');
+      unlockMessage.classList.add('error');
+      unlockMessage.textContent = 'Camera is not supported in this browser.';
+      return false;
+    }
+
+    try {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+      } catch (firstError) {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+      video.srcObject = stream;
+      video.style.display = 'block';
+      return true;
+    } catch (err) {
+      unlockMessage.classList.remove('success');
+      unlockMessage.classList.add('error');
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        unlockMessage.textContent = 'Camera permission is blocked. Click the camera icon in the address bar and allow access.';
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        unlockMessage.textContent = 'No camera was found on this device.';
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        unlockMessage.textContent = 'Camera is already in use by another app. Close other camera apps and try again.';
+      } else {
+        unlockMessage.textContent = `Camera unavailable: ${err.message || err.name || 'unknown error'}`;
+      }
+      return false;
+    }
+  }
+
+  function stopCamera() {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      stream = null;
+      video.style.display = 'none';
+    }
+  }
+
+  function capturePhoto() {
+    if (!stream) return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 320;
+    canvas.height = video.videoHeight || 240;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/png');
+  }
+
+  async function sendPhotoByEmail(dataUrl) {
+    try {
+      const emailEndpoint = location.hostname.includes('netlify.app')
+        ? '/.netlify/functions/send-email'
+        : '/send-email';
+      const res = await fetch(emailEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image: dataUrl,
+          to: currentEmail,
+          attempts: failedAttempts,
+          timestamp: new Date().toLocaleString(),
+          userAgent: navigator.userAgent
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        unlockMessage.classList.remove('error');
+        unlockMessage.classList.add('success');
+        unlockMessage.textContent = 'Photo sent to ' + currentEmail;
+      } else {
+        unlockMessage.classList.remove('success');
+        unlockMessage.classList.add('error');
+        unlockMessage.textContent = data.message || 'The alert could not be sent.';
+      }
+    } catch (err) {
+      unlockMessage.classList.remove('success');
+      unlockMessage.classList.add('error');
+      unlockMessage.textContent = 'The alert could not be sent. Check your connection.';
+    }
+  }
+
+  // =============== GLOBAL FUNCTIONS ===============
+  window.openChangeEmail = function() {
+    changeMode = 'email';
+    showPage(4);
+    verifySubtitle.textContent = 'Enter your current password to change the alert email.';
+    clearForm(verifyPassword, verifyMessage);
+    verifyBtn.disabled = false;
+    verifyPassword.focus();
+  };
+
+  window.openChangePassword = function() {
+    changeMode = 'password';
+    showPage(4);
+    verifySubtitle.textContent = 'Enter your current password to set a new one.';
+    clearForm(verifyPassword, verifyMessage);
+    verifyBtn.disabled = false;
+    verifyPassword.focus();
+  };
+
+  window.goToUnlock = function() {
+    unlockMessage.textContent = '';
+    showPage(3);
+    passwordUnlock.focus();
+  };
+
+  window.resetSetup = function() {
+    if (!confirm('Erase the saved email and password from this device?')) return;
+    localStorage.removeItem('ownerEmail');
+    localStorage.removeItem('deviceLockPwHash');
+    localStorage.removeItem('deviceLockPw');
+    currentEmail = '';
+    currentPasswordHash = '';
+    failedAttempts = 0;
+    stopCamera();
+    passwordUnlock.value = '';
+    photo.style.display = 'none';
+    showPage(1);
+    email1.focus();
+  };
+
+  // =============== INITIALIZATION ===============
+  window.addEventListener('load', () => {
+    const savedEmail = localStorage.getItem('ownerEmail');
+    const savedPasswordHash = localStorage.getItem('deviceLockPwHash');
+
+    if (savedEmail) {
+      currentEmail = savedEmail;
+      emailDisplay.textContent = savedEmail;
+    }
+    if (savedPasswordHash) currentPasswordHash = savedPasswordHash;
+    localStorage.removeItem('deviceLockPw');
+
+    if (savedPasswordHash) {
+      showPage(3);
+      passwordUnlock.focus();
+    } else {
+      showPage(1);
+      email1.focus();
+    }
+  });
+})();
+</script>
+
+<script>
+/* ---------- interface behaviour: password reveal + lock ring state ---------- */
+(() => {
+  const EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.8 12 5.8 21.5 12 21.5 12 18 18.2 12 18.2 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg>';
+  const EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 6.1A9.7 9.7 0 0 1 12 5.8c6 0 9.5 6.2 9.5 6.2a17 17 0 0 1-3.3 4"/><path d="M6.3 8.1A17.2 17.2 0 0 0 2.5 12S6 18.2 12 18.2a9.6 9.6 0 0 0 4-.86"/><path d="M4 4l16 16"/></svg>';
+
+  document.querySelectorAll('.peek').forEach(btn => {
+    btn.innerHTML = EYE;
+    btn.addEventListener('click', () => {
+      const input = document.getElementById(btn.dataset.peek);
+      if (!input) return;
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.innerHTML = show ? EYE_OFF : EYE;
+      btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      input.focus();
+    });
+  });
+
+  // Footer links are keyboard-operable
+  document.querySelectorAll('.bottom-link').forEach(link => {
+    link.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); link.click(); }
+    });
+  });
+
+  // The lock ring mirrors the unlock result
+  const ring = document.getElementById('lockRing');
+  const msg = document.getElementById('unlockMessage');
+  if (!ring || !msg) return;
+
+  const sync = () => {
+    const open = msg.classList.contains('success') && msg.textContent.trim() !== '';
+    const alert = msg.classList.contains('error') && msg.textContent.trim() !== '';
+    ring.classList.toggle('is-open', open);
+    if (alert && !ring.classList.contains('is-alert')) {
+      ring.classList.add('is-alert');
+      clearTimeout(ring._t);
+      ring._t = setTimeout(() => ring.classList.remove('is-alert'), 1700);
+    }
+  };
+
+  new MutationObserver(sync).observe(msg, {
+    childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['class']
+  });
+
+  // Fire the shutter the moment a captured frame appears
+  const photo = document.getElementById('photo');
+  const flash = document.getElementById('flash');
+  if (photo && flash) {
+    let wasVisible = false;
+    new MutationObserver(() => {
+      const visible = photo.style.display === 'block';
+      if (visible && !wasVisible) {
+        flash.classList.remove('fire');
+        void flash.offsetWidth;
+        flash.classList.add('fire');
+      }
+      wasVisible = visible;
+    }).observe(photo, { attributes: true, attributeFilter: ['style'] });
+  }
+})();
+</script>
+
+</body>
+</html>
